@@ -1,124 +1,35 @@
-#! python3
-
 from tkinter import *
 import random
 
-
 root = Tk()
 
-turns = []
-count = []
-length = 0
-segment = -1
-moved = False
+class Body:
+    def __init__(self, canvas, xpos, ypos, spacing, segtag, HMove = 1, VMove = 0):
+        self.canvas = canvas
+        self.spacing = spacing
 
-class PlayArea():
-        def __init__(self, size, cells):
-            self.size = size
-            self.cell = cells
-            self.canvas = Canvas(root, width = self.size, height = self.size, bg = "black")
-            self.CreateApple()
-
-
-        def CreateArea(self):
-            self.canvas.pack()
-
-            for i in range(self.cell):
-                self.canvas.create_line(i*self.spacing,0, i*self.spacing, self.size, fill = "gray")
-
-            for i in range(self.cell):
-                self.canvas.create_line(0, i*self.spacing, self.size, i*self.spacing, fill = "gray")
-
-            return self.canvas, self.size, self.cell
-
-        def CreateApple(self):
-                self.spacing = self.size/self.cell
-                x = (random.randint(2, self.cell-2) * self.spacing) + 1
-                y = x
-                size = self.spacing-2
-
-                self.canvas.create_rectangle(x, y, x + size, y + size, fill = "red", tag = "apple")
-                self.canvas.tag_lower("apple")
-
-        
-
-
-                
-class Snake():
-    def __init__(self, canvas, size, cell, HLocation = 3, VLocation = 3, HMove = 1, VMove = 0, ):
         self.HMove = HMove
         self.VMove = VMove
-        self.canvas = canvas
-        self.size = size
-        self.cell = cell
-        self.speed = speed
-        self.spacing = self.size/self.cell
-        self.HLocation = HLocation
-        self.VLocation = VLocation
-  
-        
-    def CreateSnake(self):
-        global length, segment
-        size = (self.spacing) - 2
-        HStart = self.HLocation * self.spacing + 1
-        VStart = self.VLocation * self.spacing + 1
-        
-        length += 1
-        segment += 1
-        
-        self.body = self.canvas.create_rectangle(HStart, VStart, size + HStart, size + VStart, fill = "white", tag = "segment"+str(segment))
-        
-    def UpdateLocation(self):
-        if self.HMove != 0:
-            self.HLocation += self.HMove
 
-        if self.VMove != 0:   
-            self.VLocation += self.VMove      
-        
-    def Move(self):
-        global speed
-        self.UpdateLocation()
-        HJump = self.HMove * self.spacing
-        VJump = self.VMove * self.spacing
-        
-        if self.HLocation > self.cell:
-            HJump = self.size * -1
-            self.HLocation = 0
+        self.canvas.create_rectangle((spacing * xpos) + 2, (spacing * ypos) + 2, (spacing * xpos) + spacing - 2, (spacing * ypos) + spacing - 2, fill = "gray", tag = segtag)
+        self.canvas.tag_lower(segtag)
 
-        elif self.HLocation < 0:
-            HJump = self.size
-            self.HLocation = self.cell
+class Head(Body):
+    def __init__(self, canvas, xpos, ypos, spacing, segtag):
+        Body.__init__(self, canvas, xpos, ypos, spacing, segtag)
+        self.canvas.itemconfig(segtag, fill = "white")
 
-        if self.VLocation > self.cell:
-            VJump = self.size * -1
-            self.VLocation = 0
+        self.turns = []
+        self.moved = False
 
-        elif self.VLocation < 0:
-            VJump = self.size
-            self.VLocation = self.cell
-            
-        self.canvas.move(self.body, HJump, VJump)
-        self.speed = speed
-        self.canvas.after(self.speed, self.Move)  
-        
-class Head(Snake):
-    def __init__(self, canvas, size, cell):
-        Snake.__init__(self, canvas, size, cell)
-        
         self.canvas.focus_set()
         self.canvas.bind("<w>", lambda D: self.Arrow("up"))
         self.canvas.bind("<a>", lambda D: self.Arrow("left"))
         self.canvas.bind("<s>", lambda D: self.Arrow("down"))
         self.canvas.bind("<d>", lambda D: self.Arrow("right"))
-        
-    def CreateSnake(self):
-            Snake.CreateSnake(self)
-            Body(self.canvas, self.size, self.cell,2, 3)
-            Body(self.canvas, self.size, self.cell,1, 3)
-                
-            
+
+
     def Arrow(self, D):
-        global turns, moved
         VMove = self.VMove
         HMove = self.HMove
         
@@ -139,114 +50,140 @@ class Head(Snake):
             VMove = 0
 
         dif = HMove - VMove
-        if  abs(dif) == 1 and moved == True:
+        if  abs(dif) == 1 and self.moved == True:
             self.VMove = VMove
             self.HMove = HMove
 
-            moved = False
+            self.moved = False
 
-
-            turns.append([self.canvas.coords(self.body), HMove, VMove])
+            self.turns.append([self.canvas.coords("seg0"), HMove, VMove])
 
         
+        
+class Snake:
+    def __init__(self, size, cells, speed):
+        self.size = size
+        self.cells = cells
+        self.speed = speed
+        self.canvas = Canvas(root, width = self.size, height = self.size, bg = "black")
 
-    def CheckApple(self):
-            global speed
-            applecoords = self.canvas.coords("apple")
-            mycoords = self.canvas.coords(self.body)
+
+        self.spacing = size/cells
+        self.segments = [] # 2D array of [Object, Tag] elements
+        self.segcount = 0
+        self.tag = "seg0"
+
+        self.CreateArea()
+     
+        self.segments.append([Head(self.canvas, 3, 1, self.spacing, str(self.tag)), str(self.tag)])
+        self.UpdateTagging()      
+
+        self.segments.append([Body(self.canvas, 2, 1, self.spacing, str(self.tag)), str(self.tag)])
+        self.UpdateTagging()
+
+        self.segments.append([Body(self.canvas, 1, 1, self.spacing, str(self.tag)), str(self.tag)])
+        self.UpdateTagging()
+
+        self.CreateApple()
+        self.Move()
+
+#Play Area
+    def CreateArea(self):
+        self.canvas.pack()
+
+        for i in range(self.cells): #Draw horizontal lines
+            self.canvas.create_line(0, i * self.spacing, self.size, i * self.spacing, fill = "white")
+
+        for i in range(self.cells): #Draw vertical lines
+            self.canvas.create_line(i * self.spacing, 0, i * self.spacing, self.size, fill = "white")
             
-            if applecoords == mycoords:
-                    self.canvas.delete("apple")
-                    PlayArea.CreateApple(self)
-                    
-                    if speed > 60:
-                            speed = speed - 10
-                            
-                    HLocation = self.HLocation
-                    VLocation = self.VLocation
+    def GameLose(self):
+        self.canvas.destroy()
+        LoseLabel = Label(root, text = "You lost!")
+        
+        LoseLabel.pack()
 
-                    if self.HMove != 0:
-                            HLocation = HLocation
+    def CreateApple(self):
+        xpos = random.randint(1, self.cells-1) * self.spacing
+        ypos = random.randint(1, self.cells-1) * self.spacing
 
+        for i in range(len(self.segments)):
+            coord = self.canvas.coords(self.segments[i][1])
+            if (xpos + 2) == coord[0] and (ypos+2) == coord[1]:
+                self.CreateApple()
+                return
+        
+        self.apple = self.canvas.create_rectangle(xpos + 2, ypos + 2, xpos + self.spacing - 2, ypos + self.spacing - 2, fill = "red", tag = "apple")
+        self.canvas.tag_lower("apple")
 
-                    elif self.VMove != 0:
-                            VLocation = VLocation
-                            
-                    self.canvas.move(self.body, self.HMove*self.spacing, self.VMove*self.spacing)
-                    self.HLocation += self.HMove
-                    self.VLocation += self.VMove
-                    
-                    Body(self.canvas, self.size, self.cell, HLocation, VLocation, self.HMove, self.VMove)
-
-    def RemoveTurn(self):
-            mycoords = self.canvas.coords(self.body)
-            for i in range(len(turns)):
-                    if mycoords == turns[i][0]:
-                            turns.remove(turns[i])
-                            break
-                    
-                    
+    
+#Snake Itself        
     def Move(self):
-            global moved
-            Head.CheckApple()
-            Snake.Move(self)
-            Head.RemoveTurn()
-            moved = True
-            Head.Collide()
+        self.turns = self.segments[0][0].turns
+        head = self.segments[0]
+        size = int(self.canvas["width"])
+        
+        self.canvas.move(head[1], head[0].HMove * self.spacing, head[0].VMove * self.spacing)
+        headcoords = self.canvas.coords("seg0")
+        head[0].moved = True
 
-    def Collide(self):
-            mycoords = self.canvas.coords(self.body)
-            for i in range(1, length-2):
-                    othercoords = self.canvas.coords("segment"+str(i))
-                    if mycoords == othercoords:
-                            self.canvas.destroy()
-                            LoseLabel = Label(root, text = "You Lost!")
-                            LoseLabel.pack()
-                    
+        if headcoords[0] < 0 or headcoords[1] < 0 or headcoords[2] > size or headcoords[3] > size:
+            self.GameLose()
+            return
+
+        for i in range(1, len(self.segments)):
+                       if headcoords == self.canvas.coords(self.segments[i][1]):
+                           self.GameLose()
+                           return
             
-class Body(Snake):
-        def __init__(self, canvas, size, cell, HLocation, VLocation, HMove = 1, VMove = 0):
-                Snake.__init__(self, canvas, size, cell, HLocation, VLocation, HMove, VMove)
-                global length, segment
-                size = (self.spacing) - 2
-                HStart = self.HLocation * self.spacing + 1
-                VStart = self.VLocation * self.spacing + 1
 
-                length += 1
-                segment += 1
+        for i in range(len(self.turns)):
+            turn = self.turns[i]
+            if self.canvas.coords("seg0") == turn[0]:
+                head[0].turns.remove(turn)
+                self.turns = head[0].turns
+
+                break
+
+        if headcoords == self.canvas.coords("apple"):
+            self.canvas.delete(self.apple)
+            self.ExtendSnake()
+            self.CreateApple()
                 
-                self.body = self.canvas.create_rectangle(HStart, VStart, size + HStart, size + VStart, fill = "white", tag = "segment"+str(segment))
+        for i in range(1, len(self.segments)):
+            seg = self.segments[i]
+            self.canvas.move(seg[1], seg[0].HMove * self.spacing, seg[0].VMove * self.spacing)
 
-                self.Move()
+            for turn in self.turns:
+                if self.canvas.coords(seg[1]) == turn[0]:
+                    seg[0].HMove, seg[0].VMove = turn[1], turn[2]
                 
-        def NextMove(self):
-                global turns, length
-                mycoords = self.canvas.coords(self.body)
-                
-                for item in turns:
-                        if mycoords == item[0]:
-                                self.HMove = item[1]
-                                self.VMove = item[2]
-                           
+        self.canvas.after(self.speed, self.Move)
 
-                                        
-        def Move(self):
-                self.NextMove()
-                Snake.Move(self)
-                
-                
-                
-               
+    def ExtendSnake(self):
+        lastseg = self.segments[-1]
+        lastcoords = self.canvas.coords(lastseg[1])
 
-SnakeArea = PlayArea(400, 25)
-speed = 200
-canvas, size, cell = SnakeArea.CreateArea()
+        xpos = ((lastcoords[0]-2)/self.spacing) - lastseg[0].HMove
+        ypos = ((lastcoords[1]-2)/self.spacing) - lastseg[0].VMove
 
-Head = Head(canvas, size, cell)
-Head.CreateSnake()
+        self.segments.append([Body(self.canvas, xpos, ypos, self.spacing, str(self.tag), lastseg[0].HMove, lastseg[0].VMove), str(self.tag)])
+        self.UpdateTagging()
 
-Head.Move()
+        if self.speed > 100:
+            self.speed -= 10
 
+        
+    def UpdateTagging(self):
+        self.segcount += 1
+        self.tag = "seg" + str(self.segcount)
+
+if __name__ == "__main__":
+    MainSnake = Snake(400, 20, 200)
 
 
         
+        
+        
+    
+    
